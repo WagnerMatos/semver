@@ -1,14 +1,152 @@
-// main.go
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
+
+type model struct {
+	state      int
+	cursor     int
+	commitType string
+	shortDesc  textinput.Model
+	longDesc   textinput.Model
+	err        error
+	quitting   bool
+}
+
+const (
+	stateCommitType = iota
+	stateShortDesc
+	stateLongDesc
+	stateConfirm
+)
+
+var (
+	commitTypes = []string{"major", "minor", "patch"}
+	style       = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+)
+
+func initialModel() model {
+	shortDesc := textinput.New()
+	shortDesc.Placeholder = "Enter short description"
+	shortDesc.Focus()
+
+	longDesc := textinput.New()
+	longDesc.Placeholder = "Enter long description (optional)"
+
+	return model{
+		state:     stateCommitType,
+		shortDesc: shortDesc,
+		longDesc:  longDesc,
+	}
+}
+
+func (m model) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			m.quitting = true
+			return m, tea.Quit
+		case "up", "k":
+			if m.state == stateCommitType {
+				m.cursor--
+				if m.cursor < 0 {
+					m.cursor = len(commitTypes) - 1
+				}
+			}
+		case "down", "j":
+			if m.state == stateCommitType {
+				m.cursor++
+				if m.cursor >= len(commitTypes) {
+					m.cursor = 0
+				}
+			}
+		case "y", "Y":
+			if m.state == stateConfirm {
+				err := saveChanges(m.commitType, m.shortDesc.Value(), m.longDesc.Value())
+				if err != nil {
+					m.err = err
+				}
+				m.quitting = true
+				return m, tea.Quit
+			}
+		case "n", "N":
+			if m.state == stateConfirm {
+				m.quitting = true
+				return m, tea.Quit
+			}
+		case "enter":
+			switch m.state {
+			case stateCommitType:
+				m.commitType = commitTypes[m.cursor]
+				m.state = stateShortDesc
+			case stateShortDesc:
+				if m.shortDesc.Value() != "" {
+					m.state = stateLongDesc
+				}
+			case stateLongDesc:
+				m.state = stateConfirm
+			}
+		}
+	}
+
+	if m.state == stateShortDesc {
+		m.shortDesc, cmd = m.shortDesc.Update(msg)
+	} else if m.state == stateLongDesc {
+		m.longDesc, cmd = m.longDesc.Update(msg)
+	}
+
+	return m, cmd
+}
+
+func (m model) View() string {
+	if m.quitting {
+		if m.err != nil {
+			return fmt.Sprintf("Error: %v\n", m.err)
+		}
+		return "Changes saved successfully!\n"
+	}
+
+	var s string
+	switch m.state {
+	case stateCommitType:
+		s = "Select commit type (↑/↓ to move, enter to select):\n\n"
+		for i, t := range commitTypes {
+			cursor := " "
+			if i == m.cursor {
+				cursor = ">"
+			}
+			s += fmt.Sprintf("%s %s\n", cursor, t)
+		}
+	case stateShortDesc:
+		s = "Short description:\n"
+		s += m.shortDesc.View()
+	case stateLongDesc:
+		s = "Long description (optional):\n"
+		s += m.longDesc.View()
+	case stateConfirm:
+		s = fmt.Sprintf("\nCommit Type: %s\nShort Description: %s\nLong Description: %s\n",
+			m.commitType, m.shortDesc.Value(), m.longDesc.Value())
+		s += "\nPress 'y' to confirm or 'n' to cancel"
+	}
+
+	return s
+}
 
 type Version struct {
 	Major int
@@ -84,48 +222,34 @@ func gitCommit(shortDesc string) error {
 	return cmd.Run()
 }
 
-func main() {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("Enter commit type (major/minor/patch): ")
-	commitType, _ := reader.ReadString('\n')
-	commitType = strings.TrimSpace(strings.ToLower(commitType))
-
-	if commitType != "major" && commitType != "minor" && commitType != "patch" {
-		fmt.Println("Invalid commit type. Must be major, minor, or patch")
-		return
-	}
-
-	fmt.Print("Enter short description: ")
-	shortDesc, _ := reader.ReadString('\n')
-	shortDesc = strings.TrimSpace(shortDesc)
-
-	fmt.Print("Enter long description (optional, press Enter to skip): ")
-	longDesc, _ := reader.ReadString('\n')
-	longDesc = strings.TrimSpace(longDesc)
-
+func saveChanges(commitType, shortDesc, longDesc string) error {
 	version, err := readVersion()
 	if err != nil {
-		fmt.Printf("Error reading version: %v\n", err)
-		return
+		return fmt.Errorf("error reading version: %v", err)
 	}
 
 	version.Bump(commitType)
 
 	if err := writeVersion(version); err != nil {
-		fmt.Printf("Error writing version: %v\n", err)
-		return
+		return fmt.Errorf("error writing version: %v", err)
 	}
 
 	if err := updateChangelog(commitType, shortDesc, longDesc, version); err != nil {
-		fmt.Printf("Error updating changelog: %v\n", err)
-		return
+		return fmt.Errorf("error updating changelog: %v", err)
 	}
 
 	if err := gitCommit(shortDesc); err != nil {
-		fmt.Printf("Error committing changes: %v\n", err)
-		return
+		return fmt.Errorf("error committing changes: %v", err)
 	}
 
-	fmt.Printf("Successfully bumped version to %s and committed changes\n", version)
+	return nil
 }
+
+func main() {
+	p := tea.NewProgram(initialModel())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Error running program: %v\n", err)
+		os.Exit(1)
+	}
+}
+
