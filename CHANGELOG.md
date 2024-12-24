@@ -22,3 +22,7 @@
 ## [0.1.1] - 2024-12-24
 ### Patch
 - Minor change in changelog to test versioning
+
+## [0.2.0] - 2024-12-24
+### Minor
+- Fixed broken versioning

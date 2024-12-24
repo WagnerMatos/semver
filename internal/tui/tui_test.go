@@ -14,10 +14,18 @@ import (
 )
 
 type mockVersionService struct {
-	version  *version.Version
-	bumpErr  error
-	readErr  error
-	writeErr error
+	version      *version.Version
+	bumpErr      error
+	readErr      error
+	writeErr     error
+	getLatestErr error
+}
+
+func (m *mockVersionService) GetLatestVersion() (*version.Version, error) {
+	if m.getLatestErr != nil {
+		return nil, m.getLatestErr
+	}
+	return m.version, nil
 }
 
 func (m *mockVersionService) Read() (*version.Version, error) {
