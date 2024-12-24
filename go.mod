@@ -1,4 +1,4 @@
-module semver
+module github.com/WagnerMatos/semver
 
 go 1.23.3
 

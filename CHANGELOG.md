@@ -38,3 +38,7 @@
 ## [0.4.0] - 2024-12-24
 ### Minor
 - Added test for main.go and generally improved tests
+
+## [0.4.1] - 2024-12-24
+### Patch
+- Updated module name to include github
