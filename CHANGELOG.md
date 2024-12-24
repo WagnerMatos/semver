@@ -54,3 +54,7 @@
 ## [0.6.0] - 2024-12-24
 ### Minor
 - Fixed file structure for the project
+
+## [0.7.0] - 2024-12-24
+### Minor
+- Minor change in gitgnore to test installation
