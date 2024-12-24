@@ -62,3 +62,7 @@
 ## [0.8.0] - 2024-12-24
 ### Minor
 - Added optional tagging
+
+## [0.8.1] - 2024-12-24
+### Patch
+- Removed space in gitignore to test new feature
