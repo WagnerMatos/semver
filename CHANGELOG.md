@@ -26,3 +26,7 @@
 ## [0.2.0] - 2024-12-24
 ### Minor
 - Fixed broken versioning
+
+## [0.2.1] - 2024-12-24
+### Patch
+- Added extra line to check fix
