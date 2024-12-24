@@ -42,3 +42,7 @@
 ## [0.4.1] - 2024-12-24
 ### Patch
 - Updated module name to include github
+
+## [0.5.0] - 2024-12-24
+### Minor
+- Fixed error after changing module name

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"semver/internal/version"
+	"github.com/WagnerMatos/semver/internal/version"
 )
 
 func TestFileService_Update(t *testing.T) {
@@ -84,4 +84,3 @@ func TestFileService_Update(t *testing.T) {
 		})
 	}
 }
-

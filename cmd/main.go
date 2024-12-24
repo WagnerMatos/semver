@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/WagnerMatos/semver/internal/config"
+	"github.com/WagnerMatos/semver/internal/tui"
 	"log/slog"
 	"os"
-	"semver/internal/config"
-	"semver/internal/tui"
 )
 
 func run(ctx context.Context, logger *slog.Logger, testing bool) error {
@@ -38,4 +38,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

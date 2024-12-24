@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/WagnerMatos/semver/internal/config"
+	"github.com/WagnerMatos/semver/internal/version"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"semver/internal/config"
-	"semver/internal/version"
 )
 
 type mockVersionService struct {
@@ -274,4 +274,3 @@ func TestView(t *testing.T) {
 		})
 	}
 }
-

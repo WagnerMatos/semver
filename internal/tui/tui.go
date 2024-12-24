@@ -10,10 +10,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"semver/internal/changelog"
-	"semver/internal/config"
-	"semver/internal/git"
-	"semver/internal/version"
+	"github.com/WagnerMatos/semver/internal/changelog"
+	"github.com/WagnerMatos/semver/internal/config"
+	"github.com/WagnerMatos/semver/internal/git"
+	"github.com/WagnerMatos/semver/internal/version"
 )
 
 type App struct {
@@ -240,4 +240,3 @@ func (m *model) saveChanges() error {
 
 	return nil
 }
-

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"semver/internal/version"
+	"github.com/WagnerMatos/semver/internal/version"
 )
 
 type Service interface {
