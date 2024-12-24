@@ -1,10 +1,10 @@
-// internal/tui/tui.go
 package tui
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,6 +22,7 @@ type App struct {
 	version version.Service
 	git     git.Service
 	log     changelog.Service
+	testing bool
 }
 
 func New(cfg *config.Config, logger *slog.Logger) *App {
@@ -34,7 +35,30 @@ func New(cfg *config.Config, logger *slog.Logger) *App {
 	}
 }
 
+func NewTest(cfg *config.Config, logger *slog.Logger) *App {
+	app := New(cfg, logger)
+	app.testing = true
+	return app
+}
+
 func (a *App) Run(ctx context.Context) error {
+	// If in test mode, just create the files
+	if a.testing {
+		ver := &version.Version{0, 1, 0}
+		if err := a.version.Write(ver); err != nil {
+			return fmt.Errorf("writing initial version: %w", err)
+		}
+
+		// Create empty changelog
+		f, err := os.OpenFile(a.cfg.ChangelogFile, os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("creating changelog: %w", err)
+		}
+		f.Close()
+
+		return nil
+	}
+
 	m := initialModel(ctx, a)
 	p := tea.NewProgram(m)
 
@@ -45,6 +69,7 @@ func (a *App) Run(ctx context.Context) error {
 	return nil
 }
 
+// Rest of the file remains the same...
 type model struct {
 	ctx        context.Context
 	app        *App

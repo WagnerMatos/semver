@@ -34,3 +34,7 @@
 ## [0.3.0] - 2024-12-24
 ### Minor
 - Upgraded versions and tidy go.mod
+
+## [0.4.0] - 2024-12-24
+### Minor
+- Added test for main.go and generally improved tests

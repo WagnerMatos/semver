@@ -2,26 +2,40 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"semver/internal/config"
 	"semver/internal/tui"
 )
 
-func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-
+func run(ctx context.Context, logger *slog.Logger, testing bool) error {
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Error("failed to load config", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	ctx := context.Background()
-	app := tui.New(cfg, logger)
+	var app *tui.App
+	if testing {
+		app = tui.NewTest(cfg, logger)
+	} else {
+		app = tui.New(cfg, logger)
+	}
 
 	if err := app.Run(ctx); err != nil {
-		logger.Error("application error", "error", err)
+		return fmt.Errorf("application error: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	ctx := context.Background()
+
+	if err := run(ctx, logger, false); err != nil {
+		logger.Error("error running application", "error", err)
 		os.Exit(1)
 	}
 }
+
