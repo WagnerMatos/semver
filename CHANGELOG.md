@@ -50,3 +50,7 @@
 ## [0.5.1] - 2024-12-24
 ### Patch
 - Added build to repo
+
+## [0.6.0] - 2024-12-24
+### Minor
+- Fixed file structure for the project
