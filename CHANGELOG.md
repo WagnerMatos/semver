@@ -66,3 +66,7 @@
 ## [0.8.1] - 2024-12-24
 ### Patch
 - Removed space in gitignore to test new feature
+
+## [0.8.2] - 2024-12-24
+### Patch
+- Removed space from gitignore to test changes
