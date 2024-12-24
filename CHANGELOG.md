@@ -30,3 +30,7 @@
 ## [0.2.1] - 2024-12-24
 ### Patch
 - Added extra line to check fix
+
+## [0.3.0] - 2024-12-24
+### Minor
+- Upgraded versions and tidy go.mod
