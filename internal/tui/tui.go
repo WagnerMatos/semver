@@ -42,14 +42,12 @@ func NewTest(cfg *config.Config, logger *slog.Logger) *App {
 }
 
 func (a *App) Run(ctx context.Context) error {
-	// If in test mode, just create the files
 	if a.testing {
 		ver := &version.Version{0, 1, 0}
 		if err := a.version.Write(ver); err != nil {
 			return fmt.Errorf("writing initial version: %w", err)
 		}
 
-		// Create empty changelog
 		f, err := os.OpenFile(a.cfg.ChangelogFile, os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return fmt.Errorf("creating changelog: %w", err)
@@ -69,7 +67,6 @@ func (a *App) Run(ctx context.Context) error {
 	return nil
 }
 
-// Rest of the file remains the same...
 type model struct {
 	ctx        context.Context
 	app        *App
@@ -89,6 +86,7 @@ const (
 	stateShortDesc
 	stateLongDesc
 	stateConfirm
+	stateTagConfirm
 )
 
 var (
@@ -144,17 +142,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "y", "Y":
-			if m.state == stateConfirm {
-				if err := m.saveChanges(); err != nil {
+			switch m.state {
+			case stateConfirm:
+				if err := m.saveChanges(false); err != nil {
 					m.err = err
 					m.app.logger.Error("failed to save changes", "error", err)
+					m.quitting = true
+					return m, tea.Quit
+				}
+				m.state = stateTagConfirm
+			case stateTagConfirm:
+				if err := m.createTag(); err != nil {
+					m.err = err
+					m.app.logger.Error("failed to create tag", "error", err)
 				}
 				m.quitting = true
 				return m, tea.Quit
 			}
 
 		case "n", "N":
-			if m.state == stateConfirm {
+			if m.state == stateConfirm || m.state == stateTagConfirm {
 				m.quitting = true
 				return m, tea.Quit
 			}
@@ -215,12 +222,16 @@ func (m model) View() string {
 		s = fmt.Sprintf("\nCommit Type: %s\nShort Description: %s\nLong Description: %s\n",
 			m.commitType, m.shortDesc.Value(), m.longDesc.Value())
 		s += "\nPress 'y' to confirm or 'n' to cancel"
+
+	case stateTagConfirm:
+		ver, _ := m.app.version.Read()
+		s = fmt.Sprintf("\nCreate git tag v%s? (y/n)", ver.String())
 	}
 
 	return s
 }
 
-func (m *model) saveChanges() error {
+func (m *model) saveChanges(createTag bool) error {
 	if err := m.app.version.Bump(m.commitType); err != nil {
 		return fmt.Errorf("bumping version: %w", err)
 	}
@@ -238,5 +249,25 @@ func (m *model) saveChanges() error {
 		return fmt.Errorf("committing changes: %w", err)
 	}
 
+	if createTag {
+		if err := m.createTag(); err != nil {
+			return fmt.Errorf("creating tag: %w", err)
+		}
+	}
+
 	return nil
 }
+
+func (m *model) createTag() error {
+	ver, err := m.app.version.Read()
+	if err != nil {
+		return fmt.Errorf("reading version: %w", err)
+	}
+
+	if err := m.app.git.Tag(m.ctx, ver); err != nil {
+		return fmt.Errorf("creating tag: %w", err)
+	}
+
+	return nil
+}
+

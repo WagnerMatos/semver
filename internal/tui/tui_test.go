@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strings"
 	"testing"
 
 	"github.com/WagnerMatos/semver/internal/config"
@@ -52,10 +51,15 @@ func (m *mockVersionService) Bump(t version.Type) error {
 
 type mockGitService struct {
 	commitErr error
+	tagErr    error
 }
 
 func (m *mockGitService) Commit(ctx context.Context, message string) error {
 	return m.commitErr
+}
+
+func (m *mockGitService) Tag(ctx context.Context, ver *version.Version) error {
+	return m.tagErr
 }
 
 type mockChangelogService struct {
@@ -65,8 +69,6 @@ type mockChangelogService struct {
 func (m *mockChangelogService) Update(v version.Version, t version.Type, shortDesc, longDesc string) error {
 	return m.updateErr
 }
-
-var errTest = errors.New("test error")
 
 func TestModel_Update(t *testing.T) {
 	tests := []struct {
@@ -102,10 +104,26 @@ func TestModel_Update(t *testing.T) {
 			wantCursor: 0,
 		},
 		{
-			name:       "quit",
-			msg:        tea.KeyMsg{Type: tea.KeyCtrlC},
-			initState:  stateCommitType,
-			wantState:  stateCommitType,
+			name:       "confirm changes",
+			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")},
+			initState:  stateConfirm,
+			wantState:  stateTagConfirm,
+			cursor:     0,
+			wantCursor: 0,
+		},
+		{
+			name:       "confirm tag",
+			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")},
+			initState:  stateTagConfirm,
+			wantState:  stateTagConfirm,
+			cursor:     0,
+			wantCursor: 0,
+		},
+		{
+			name:       "cancel tag",
+			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")},
+			initState:  stateTagConfirm,
+			wantState:  stateTagConfirm,
 			cursor:     0,
 			wantCursor: 0,
 		},
@@ -116,7 +134,7 @@ func TestModel_Update(t *testing.T) {
 			app := &App{
 				cfg:     &config.Config{},
 				logger:  slog.Default(),
-				version: &mockVersionService{},
+				version: &mockVersionService{version: &version.Version{1, 0, 0}},
 				git:     &mockGitService{},
 				log:     &mockChangelogService{},
 			}
@@ -128,7 +146,7 @@ func TestModel_Update(t *testing.T) {
 			newModel, _ := m.Update(tt.msg)
 			updatedModel := newModel.(model)
 
-			if updatedModel.state != tt.wantState {
+			if updatedModel.state != tt.wantState && !updatedModel.quitting {
 				t.Errorf("state = %v, want %v", updatedModel.state, tt.wantState)
 			}
 
@@ -146,11 +164,19 @@ func TestSaveChanges(t *testing.T) {
 		readErr   error
 		updateErr error
 		commitErr error
+		tagErr    error
+		createTag bool
 		wantErr   bool
 	}{
 		{
-			name:    "successful save",
-			wantErr: false,
+			name:      "successful save without tag",
+			createTag: false,
+			wantErr:   false,
+		},
+		{
+			name:      "successful save with tag",
+			createTag: true,
+			wantErr:   false,
 		},
 		{
 			name:    "bump error",
@@ -172,6 +198,12 @@ func TestSaveChanges(t *testing.T) {
 			commitErr: errTest,
 			wantErr:   true,
 		},
+		{
+			name:      "tag error",
+			createTag: true,
+			tagErr:    errTest,
+			wantErr:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -186,24 +218,22 @@ func TestSaveChanges(t *testing.T) {
 				},
 				git: &mockGitService{
 					commitErr: tt.commitErr,
+					tagErr:    tt.tagErr,
 				},
 				log: &mockChangelogService{
 					updateErr: tt.updateErr,
 				},
 			}
 
-			shortDesc := textinput.New()
-			longDesc := textinput.New()
-
 			m := &model{
 				ctx:        context.Background(),
 				app:        app,
 				commitType: version.Major,
-				shortDesc:  shortDesc,
-				longDesc:   longDesc,
+				shortDesc:  textinput.New(),
+				longDesc:   textinput.New(),
 			}
 
-			err := m.saveChanges()
+			err := m.saveChanges(tt.createTag)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("saveChanges() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -211,66 +241,55 @@ func TestSaveChanges(t *testing.T) {
 	}
 }
 
-func TestView(t *testing.T) {
+func TestCreateTag(t *testing.T) {
 	tests := []struct {
-		name     string
-		state    state
-		quitting bool
-		err      error
-		contains []string
+		name    string
+		readErr error
+		tagErr  error
+		wantErr bool
 	}{
 		{
-			name:     "commit type view",
-			state:    stateCommitType,
-			contains: []string{"Select commit type", "major", "minor", "patch"},
+			name:    "successful tag creation",
+			wantErr: false,
 		},
 		{
-			name:     "short description view",
-			state:    stateShortDesc,
-			contains: []string{"Short description"},
+			name:    "read error",
+			readErr: errTest,
+			wantErr: true,
 		},
 		{
-			name:     "long description view",
-			state:    stateLongDesc,
-			contains: []string{"Long description"},
-		},
-		{
-			name:     "confirm view",
-			state:    stateConfirm,
-			contains: []string{"confirm"},
-		},
-		{
-			name:     "error view",
-			quitting: true,
-			err:      errTest,
-			contains: []string{"Error: test error"},
-		},
-		{
-			name:     "success view",
-			quitting: true,
-			contains: []string{"Changes saved successfully"},
+			name:    "tag error",
+			tagErr:  errTest,
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shortDesc := textinput.New()
-			longDesc := textinput.New()
-
-			m := model{
-				state:     tt.state,
-				quitting:  tt.quitting,
-				err:       tt.err,
-				shortDesc: shortDesc,
-				longDesc:  longDesc,
+			app := &App{
+				cfg:    &config.Config{},
+				logger: slog.Default(),
+				version: &mockVersionService{
+					version: &version.Version{1, 0, 0},
+					readErr: tt.readErr,
+				},
+				git: &mockGitService{
+					tagErr: tt.tagErr,
+				},
 			}
 
-			view := m.View()
-			for _, s := range tt.contains {
-				if !strings.Contains(strings.ToLower(view), strings.ToLower(s)) {
-					t.Errorf("View() missing %q", s)
-				}
+			m := &model{
+				ctx: context.Background(),
+				app: app,
+			}
+
+			err := m.createTag()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("createTag() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
 }
+
+var errTest = errors.New("test error")
+

@@ -58,3 +58,7 @@
 ## [0.7.0] - 2024-12-24
 ### Minor
 - Minor change in gitgnore to test installation
+
+## [0.8.0] - 2024-12-24
+### Minor
+- Added optional tagging
