@@ -82,3 +82,7 @@
 ## [0.1.0] - 2024-12-27
 ### Minor
 - Fixed bug in minor versioning
+
+## [0.10.0] - 2024-12-27
+### Minor
+- Minor release update
