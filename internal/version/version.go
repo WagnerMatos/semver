@@ -125,51 +125,53 @@ func (s *FileService) Read() (*Version, error) {
 func (s *FileService) GetLatestVersion() (*Version, error) {
 	// Try reading from VERSION.md first
 	data, err := os.ReadFile(s.filepath)
-	if err == nil {
-		if ver, err := ParseVersion(strings.TrimSpace(string(data))); err == nil {
-			s.version = ver
-			return ver, nil
-		}
-	}
-
-	// If VERSION.md doesn't exist or is invalid, try to parse from CHANGELOG.md
-	changelogPath := filepath.Join(filepath.Dir(s.filepath), "CHANGELOG.md")
-	data, err = os.ReadFile(changelogPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			s.version = &Version{0, 1, 0}
-			return s.version, nil
+		if os.IsNotExist(err) {
+			// For new repositories, start with 0.1.0
+			return &Version{0, 1, 0}, nil
 		}
-		return nil, fmt.Errorf("reading changelog: %w", err)
+		return nil, fmt.Errorf("reading version file: %w", err)
 	}
 
-	versions := make([]*Version, 0)
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "## [") && strings.Contains(line, "]") {
-			verStr := strings.TrimPrefix(line, "## [")
-			verStr = strings.Split(verStr, "]")[0]
-			if ver, err := ParseVersion(strings.TrimSpace(verStr)); err == nil {
-				versions = append(versions, ver)
+	ver, err := ParseVersion(strings.TrimSpace(string(data)))
+	if err != nil {
+		// If VERSION.md exists but is invalid, try CHANGELOG.md
+		changelogPath := filepath.Join(filepath.Dir(s.filepath), "CHANGELOG.md")
+		data, err = os.ReadFile(changelogPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return &Version{0, 1, 0}, nil
+			}
+			return nil, fmt.Errorf("reading changelog: %w", err)
+		}
+
+		versions := make([]*Version, 0)
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "## [") && strings.Contains(line, "]") {
+				verStr := strings.TrimPrefix(line, "## [")
+				verStr = strings.Split(verStr, "]")[0]
+				if ver, err := ParseVersion(strings.TrimSpace(verStr)); err == nil {
+					versions = append(versions, ver)
+				}
 			}
 		}
+
+		if len(versions) == 0 {
+			return &Version{0, 1, 0}, nil
+		}
+
+		// Sort versions in descending order
+		sort.Slice(versions, func(i, j int) bool {
+			return versions[i].Compare(versions[j]) > 0
+		})
+
+		return versions[0], nil
 	}
 
-	if len(versions) == 0 {
-		s.version = &Version{0, 1, 0}
-		return s.version, nil
-	}
-
-	// Sort versions in descending order
-	sort.Slice(versions, func(i, j int) bool {
-		return versions[i].Compare(versions[j]) > 0
-	})
-
-	s.version = versions[0]
-	return s.version, nil
+	return ver, nil
 }
-
 func (s *FileService) Write(v *Version) error {
 	if err := os.WriteFile(s.filepath, []byte(v.String()), 0644); err != nil {
 		return fmt.Errorf("writing version file: %w", err)
@@ -190,4 +192,3 @@ func (s *FileService) Bump(t Type) error {
 
 	return s.Write(s.version)
 }
-

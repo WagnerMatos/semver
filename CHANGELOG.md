@@ -70,3 +70,7 @@
 ## [0.8.2] - 2024-12-24
 ### Patch
 - Removed space from gitignore to test changes
+
+## [0.2.0] - 2024-12-27
+### Minor
+- Fixed bug with version number not starting from 0.1.0

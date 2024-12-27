@@ -119,50 +119,74 @@ func TestVersion_Compare(t *testing.T) {
 	}
 }
 
-func createFile(t *testing.T, path string, content string) {
-	t.Helper()
-	err := os.WriteFile(path, []byte(content), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write file: %v", err)
-	}
-}
-
 func TestFileService_GetLatestVersion(t *testing.T) {
 	dir := t.TempDir()
 	versionFile := filepath.Join(dir, "VERSION.md")
 	changelogFile := filepath.Join(dir, "CHANGELOG.md")
 
 	tests := []struct {
-		name             string
-		versionContent   string
-		changelogContent string
-		setupFiles       func()
-		want             *Version
-		wantErr          bool
+		name       string
+		setupFiles func(t *testing.T, dir string)
+		want       *Version
+		wantErr    bool
 	}{
 		{
-			name: "version from VERSION.md",
-			setupFiles: func() {
-				createFile(t, versionFile, "1.2.3")
+			name:       "no files exist - should return 0.1.0",
+			setupFiles: func(t *testing.T, dir string) {},
+			want:       &Version{0, 1, 0},
+			wantErr:    false,
+		},
+		{
+			name: "valid VERSION.md exists",
+			setupFiles: func(t *testing.T, dir string) {
+				err := os.WriteFile(versionFile, []byte("1.2.3"), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
 			},
 			want:    &Version{1, 2, 3},
 			wantErr: false,
 		},
 		{
-			name: "version from CHANGELOG.md",
-			setupFiles: func() {
-				createFile(t, changelogFile, `## [2.0.0] - 2024-12-23
+			name: "invalid VERSION.md but valid CHANGELOG.md exists",
+			setupFiles: func(t *testing.T, dir string) {
+				err := os.WriteFile(versionFile, []byte("invalid"), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
+				changelogContent := `## [2.0.0] - 2024-12-23
 ### Major
 - desc
 ## [1.0.0] - 2024-12-23
 ### Major
-- Initial commit`)
+- Initial commit`
+				err = os.WriteFile(changelogFile, []byte(changelogContent), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
 			},
 			want:    &Version{2, 0, 0},
 			wantErr: false,
 		},
 		{
-			name:    "no files exist",
+			name: "only invalid VERSION.md exists",
+			setupFiles: func(t *testing.T, dir string) {
+				err := os.WriteFile(versionFile, []byte("invalid"), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
+			},
+			want:    &Version{0, 1, 0},
+			wantErr: false,
+		},
+		{
+			name: "empty CHANGELOG.md exists",
+			setupFiles: func(t *testing.T, dir string) {
+				err := os.WriteFile(changelogFile, []byte(""), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
+			},
 			want:    &Version{0, 1, 0},
 			wantErr: false,
 		},
@@ -174,9 +198,7 @@ func TestFileService_GetLatestVersion(t *testing.T) {
 			os.Remove(versionFile)
 			os.Remove(changelogFile)
 
-			if tt.setupFiles != nil {
-				tt.setupFiles()
-			}
+			tt.setupFiles(t, dir)
 
 			fs := NewFileService(versionFile)
 			got, err := fs.GetLatestVersion()
@@ -198,48 +220,39 @@ func TestFileService_Bump(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		setupFiles func()
+		setupFiles func(t *testing.T, dir string)
 		bumpType   Type
 		want       string
 		wantErr    bool
 	}{
 		{
-			name: "bump major from changelog",
-			setupFiles: func() {
-				createFile(t, changelogFile, `## [2.0.0] - 2024-12-23
-### Major
-- desc`)
-			},
-			bumpType: Major,
-			want:     "3.0.0",
-			wantErr:  false,
+			name:       "bump major from scratch",
+			setupFiles: func(t *testing.T, dir string) {},
+			bumpType:   Major,
+			want:       "1.0.0",
+			wantErr:    false,
 		},
 		{
-			name: "bump minor from changelog",
-			setupFiles: func() {
-				createFile(t, changelogFile, `## [2.0.0] - 2024-12-23
-### Major
-- desc`)
-			},
-			bumpType: Minor,
-			want:     "2.1.0",
-			wantErr:  false,
+			name:       "bump minor from scratch",
+			setupFiles: func(t *testing.T, dir string) {},
+			bumpType:   Minor,
+			want:       "0.2.0",
+			wantErr:    false,
 		},
 		{
-			name: "bump patch from changelog",
-			setupFiles: func() {
-				createFile(t, changelogFile, `## [2.0.0] - 2024-12-23
-### Major
-- desc`)
-			},
-			bumpType: Patch,
-			want:     "2.0.1",
-			wantErr:  false,
+			name:       "bump patch from scratch",
+			setupFiles: func(t *testing.T, dir string) {},
+			bumpType:   Patch,
+			want:       "0.1.1",
+			wantErr:    false,
 		},
 		{
-			name: "bump from version file",
-			setupFiles: func() {
-				createFile(t, versionFile, "1.2.3")
+			name: "bump from existing version",
+			setupFiles: func(t *testing.T, dir string) {
+				err := os.WriteFile(versionFile, []byte("1.2.3"), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
 			},
 			bumpType: Minor,
 			want:     "1.3.0",
@@ -249,13 +262,10 @@ func TestFileService_Bump(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up files from previous test
 			os.Remove(versionFile)
 			os.Remove(changelogFile)
 
-			if tt.setupFiles != nil {
-				tt.setupFiles()
-			}
+			tt.setupFiles(t, dir)
 
 			fs := NewFileService(versionFile)
 			err := fs.Bump(tt.bumpType)
