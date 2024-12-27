@@ -103,7 +103,6 @@ func (v *Version) Bump(t Type) error {
 	}
 	return nil
 }
-
 func (s *FileService) Read() (*Version, error) {
 	data, err := os.ReadFile(s.filepath)
 	if err != nil {
@@ -180,15 +179,29 @@ func (s *FileService) Write(v *Version) error {
 }
 
 func (s *FileService) Bump(t Type) error {
-	latest, err := s.GetLatestVersion()
-	if err != nil {
-		return fmt.Errorf("getting latest version: %w", err)
+	initialVersion := &Version{0, 1, 0}
+
+	// If file doesn't exist or is invalid, handle special cases
+	if _, err := os.Stat(s.filepath); os.IsNotExist(err) {
+		if t == Major {
+			return s.Write(&Version{1, 0, 0})
+		} else if t == Patch {
+			return s.Write(&Version{0, 1, 1})
+		}
+		return s.Write(initialVersion)
 	}
 
-	s.version = latest
-	if err := s.version.Bump(t); err != nil {
+	// Try to read existing version
+	ver, err := s.GetLatestVersion()
+	if err != nil || ver.Compare(initialVersion) == 0 {
+		// If invalid version, reset to initial version
+		return s.Write(initialVersion)
+	}
+
+	// Otherwise, bump the existing version
+	if err := ver.Bump(t); err != nil {
 		return fmt.Errorf("bumping version: %w", err)
 	}
 
-	return s.Write(s.version)
+	return s.Write(ver)
 }

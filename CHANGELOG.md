@@ -78,3 +78,7 @@
 ## [0.2.0] - 2024-12-27
 ### Minor
 - Testing bug fix for initial version number
+
+## [0.1.0] - 2024-12-27
+### Minor
+- Fixed bug in minor versioning
