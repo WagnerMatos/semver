@@ -143,6 +143,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "y", "Y":
 			switch m.state {
+			case stateTagConfirm:
+				if err := m.createTag(); err != nil {
+					m.err = err
+					m.app.logger.Error("failed to create tag", "error", err)
+				}
+				m.state = stateConfirm
 			case stateConfirm:
 				if err := m.saveChanges(false); err != nil {
 					m.err = err
@@ -152,12 +158,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.quitting = true
 				return m, tea.Quit
-			case stateTagConfirm:
-				if err := m.createTag(); err != nil {
-					m.err = err
-					m.app.logger.Error("failed to create tag", "error", err)
-				}
-				m.state = stateConfirm
 			}
 
 		case "n", "N":
@@ -182,6 +182,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.quitting = true
 					return m, tea.Quit
 				}
+
+				ver, err := m.app.version.Read()
+				if err != nil {
+					m.err = err
+					m.app.logger.Error("failed to read version", "error", err)
+					m.quitting = true
+					return m, tea.Quit
+				}
+
+				if err := m.app.version.Write(ver); err != nil {
+					m.err = err
+					m.app.logger.Error("failed to write version", "error", err)
+					m.quitting = true
+					return m, tea.Quit
+				}
+
 				m.state = stateTagConfirm
 			}
 		}
@@ -225,7 +241,10 @@ func (m model) View() string {
 		s += m.longDesc.View()
 
 	case stateTagConfirm:
-		ver, _ := m.app.version.Read()
+		ver, err := m.app.version.Read()
+		if err != nil {
+			return fmt.Sprintf("Error: failed to read version (%v)\n", err)
+		}
 		s = fmt.Sprintf("\nCreate git tag v%s? (y/n)", ver.String())
 
 	case stateConfirm:

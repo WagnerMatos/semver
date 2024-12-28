@@ -98,3 +98,7 @@
 ## [0.13.0] - 2024-12-28
 ### Minor
 - Updated error when confirm tag creation was displaying old version
+
+## [0.15.0] - 2024-12-28
+### Minor
+- Fixing issue with displaying the wrong tag version
