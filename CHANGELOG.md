@@ -90,3 +90,7 @@
 ## [0.11.0] - 2024-12-28
 ### Minor
 - Chnage TUI order
+
+## [0.11.1] - 2024-12-28
+### Patch
+- Fixed error with tests

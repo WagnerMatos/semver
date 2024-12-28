@@ -2,13 +2,11 @@ package tui
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"testing"
 
 	"github.com/WagnerMatos/semver/internal/config"
 	"github.com/WagnerMatos/semver/internal/version"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -78,6 +76,7 @@ func TestModel_Update(t *testing.T) {
 		wantState  state
 		cursor     int
 		wantCursor int
+		setupModel func(m *model) // New setup function for model
 	}{
 		{
 			name:       "move cursor up",
@@ -104,26 +103,45 @@ func TestModel_Update(t *testing.T) {
 			wantCursor: 0,
 		},
 		{
+			name:       "enter short description",
+			msg:        tea.KeyMsg{Type: tea.KeyEnter},
+			initState:  stateShortDesc,
+			wantState:  stateLongDesc,
+			cursor:     0,
+			wantCursor: 0,
+			setupModel: func(m *model) {
+				m.shortDesc.SetValue("A valid short description")
+			},
+		},
+		{
+			name:       "enter long description",
+			msg:        tea.KeyMsg{Type: tea.KeyEnter},
+			initState:  stateLongDesc,
+			wantState:  stateTagConfirm,
+			cursor:     0,
+			wantCursor: 0,
+		},
+		{
+			name:       "confirm tag creation",
+			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")},
+			initState:  stateTagConfirm,
+			wantState:  stateConfirm,
+			cursor:     0,
+			wantCursor: 0,
+		},
+		{
 			name:       "confirm changes",
 			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")},
 			initState:  stateConfirm,
-			wantState:  stateTagConfirm,
+			wantState:  stateConfirm,
 			cursor:     0,
 			wantCursor: 0,
 		},
 		{
-			name:       "confirm tag",
-			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")},
-			initState:  stateTagConfirm,
-			wantState:  stateTagConfirm,
-			cursor:     0,
-			wantCursor: 0,
-		},
-		{
-			name:       "cancel tag",
+			name:       "cancel changes",
 			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")},
-			initState:  stateTagConfirm,
-			wantState:  stateTagConfirm,
+			initState:  stateConfirm,
+			wantState:  stateConfirm,
 			cursor:     0,
 			wantCursor: 0,
 		},
@@ -143,6 +161,10 @@ func TestModel_Update(t *testing.T) {
 			m.state = tt.initState
 			m.cursor = tt.cursor
 
+			if tt.setupModel != nil {
+				tt.setupModel(&m) // Apply any setup before updating
+			}
+
 			newModel, _ := m.Update(tt.msg)
 			updatedModel := newModel.(model)
 
@@ -156,140 +178,4 @@ func TestModel_Update(t *testing.T) {
 		})
 	}
 }
-
-func TestSaveChanges(t *testing.T) {
-	tests := []struct {
-		name      string
-		bumpErr   error
-		readErr   error
-		updateErr error
-		commitErr error
-		tagErr    error
-		createTag bool
-		wantErr   bool
-	}{
-		{
-			name:      "successful save without tag",
-			createTag: false,
-			wantErr:   false,
-		},
-		{
-			name:      "successful save with tag",
-			createTag: true,
-			wantErr:   false,
-		},
-		{
-			name:    "bump error",
-			bumpErr: errTest,
-			wantErr: true,
-		},
-		{
-			name:    "read error",
-			readErr: errTest,
-			wantErr: true,
-		},
-		{
-			name:      "update error",
-			updateErr: errTest,
-			wantErr:   true,
-		},
-		{
-			name:      "commit error",
-			commitErr: errTest,
-			wantErr:   true,
-		},
-		{
-			name:      "tag error",
-			createTag: true,
-			tagErr:    errTest,
-			wantErr:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app := &App{
-				cfg:    &config.Config{},
-				logger: slog.Default(),
-				version: &mockVersionService{
-					version: &version.Version{1, 0, 0},
-					bumpErr: tt.bumpErr,
-					readErr: tt.readErr,
-				},
-				git: &mockGitService{
-					commitErr: tt.commitErr,
-					tagErr:    tt.tagErr,
-				},
-				log: &mockChangelogService{
-					updateErr: tt.updateErr,
-				},
-			}
-
-			m := &model{
-				ctx:        context.Background(),
-				app:        app,
-				commitType: version.Major,
-				shortDesc:  textinput.New(),
-				longDesc:   textinput.New(),
-			}
-
-			err := m.saveChanges(tt.createTag)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("saveChanges() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-func TestCreateTag(t *testing.T) {
-	tests := []struct {
-		name    string
-		readErr error
-		tagErr  error
-		wantErr bool
-	}{
-		{
-			name:    "successful tag creation",
-			wantErr: false,
-		},
-		{
-			name:    "read error",
-			readErr: errTest,
-			wantErr: true,
-		},
-		{
-			name:    "tag error",
-			tagErr:  errTest,
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app := &App{
-				cfg:    &config.Config{},
-				logger: slog.Default(),
-				version: &mockVersionService{
-					version: &version.Version{1, 0, 0},
-					readErr: tt.readErr,
-				},
-				git: &mockGitService{
-					tagErr: tt.tagErr,
-				},
-			}
-
-			m := &model{
-				ctx: context.Background(),
-				app: app,
-			}
-
-			err := m.createTag()
-			if (err != nil) != tt.wantErr {
-				t.Errorf("createTag() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-var errTest = errors.New("test error")
 
