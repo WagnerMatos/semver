@@ -176,6 +176,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateLongDesc
 				}
 			case stateLongDesc:
+				if err := m.app.version.Bump(m.commitType); err != nil {
+					m.err = err
+					m.app.logger.Error("failed to bump version", "error", err)
+					m.quitting = true
+					return m, tea.Quit
+				}
 				m.state = stateTagConfirm
 			}
 		}

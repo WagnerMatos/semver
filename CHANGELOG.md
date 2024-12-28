@@ -94,3 +94,7 @@
 ## [0.11.1] - 2024-12-28
 ### Patch
 - Fixed error with tests
+
+## [0.13.0] - 2024-12-28
+### Minor
+- Updated error when confirm tag creation was displaying old version
