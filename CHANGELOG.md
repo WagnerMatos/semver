@@ -86,3 +86,7 @@
 ## [0.10.0] - 2024-12-27
 ### Minor
 - Minor release update
+
+## [0.11.0] - 2024-12-28
+### Minor
+- Chnage TUI order

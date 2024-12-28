@@ -85,8 +85,8 @@ const (
 	stateCommitType state = iota
 	stateShortDesc
 	stateLongDesc
-	stateConfirm
 	stateTagConfirm
+	stateConfirm
 )
 
 var (
@@ -150,14 +150,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.quitting = true
 					return m, tea.Quit
 				}
-				m.state = stateTagConfirm
+				m.quitting = true
+				return m, tea.Quit
 			case stateTagConfirm:
 				if err := m.createTag(); err != nil {
 					m.err = err
 					m.app.logger.Error("failed to create tag", "error", err)
 				}
-				m.quitting = true
-				return m, tea.Quit
+				m.state = stateConfirm
 			}
 
 		case "n", "N":
@@ -176,7 +176,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = stateLongDesc
 				}
 			case stateLongDesc:
-				m.state = stateConfirm
+				m.state = stateTagConfirm
 			}
 		}
 	}
@@ -218,14 +218,14 @@ func (m model) View() string {
 		s = "Long description (optional):\n"
 		s += m.longDesc.View()
 
+	case stateTagConfirm:
+		ver, _ := m.app.version.Read()
+		s = fmt.Sprintf("\nCreate git tag v%s? (y/n)", ver.String())
+
 	case stateConfirm:
 		s = fmt.Sprintf("\nCommit Type: %s\nShort Description: %s\nLong Description: %s\n",
 			m.commitType, m.shortDesc.Value(), m.longDesc.Value())
 		s += "\nPress 'y' to confirm or 'n' to cancel"
-
-	case stateTagConfirm:
-		ver, _ := m.app.version.Read()
-		s = fmt.Sprintf("\nCreate git tag v%s? (y/n)", ver.String())
 	}
 
 	return s
